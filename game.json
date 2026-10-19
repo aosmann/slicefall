@@ -1,0 +1,15 @@
+{
+  "contract": 1,
+  "id": "slicefall",
+  "name": "Slicefall",
+  "pitch": "Slice the right answer. Dodge the bombs.",
+  "description": "The answers fly up as fruit. Swipe through the right one, and leave the wrong ones alone: they are bombs. Three lives, streak multipliers and a frenzy every 8th wave.",
+  "color": "#3fae4a",
+  "icon": "icon-512.png",
+  "bank": "EduQ",
+  "score": "points",
+  "settings": [
+    {"key": "level", "label": "Difficulty", "options": [[1, "Easy"], [2, "Medium"], [3, "Hard"]], "default": "topic"},
+    {"key": "time", "label": "Time limit", "options": [[60, "60 sec"], [90, "90 sec"], [120, "2 min"]], "default": 60}
+  ]
+}
