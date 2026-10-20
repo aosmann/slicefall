@@ -77,7 +77,13 @@ button:focus-visible{outline:3px solid var(--gold);outline-offset:3px}
 #clock .fill{stroke:var(--lime);stroke-linecap:round;transition:stroke .3s}
 #clock b{position:absolute;inset:0;display:grid;place-items:center;font:400 22px/1 var(--display);color:#fff;padding-top:4px;text-shadow:0 2px 0 rgba(0,0,0,.45);font-variant-numeric:tabular-nums}
 #clock.low .fill{stroke:var(--bad)}
-#clock.low b{animation:beat 1s ease-in-out infinite}
+#clock.low b{animation:beat 1s ease-in-out infinite;font-size:20px}
+#clock.stop .fill{stroke:#f6dcc0}
+#clockD{position:absolute;left:50%;top:70px;transform:translateX(-50%);font:400 17px/1 var(--display);white-space:nowrap;opacity:0;padding-top:2px;
+  text-shadow:0 2px 0 rgba(0,0,0,.55);transition:opacity .25s}
+#clockD.good{color:#7fe39a;opacity:1;animation:drop .9s ease-out} #clockD.bad{color:#ff8a8a;opacity:1;animation:drop .9s ease-out}
+@keyframes drop{0%{transform:translate(-50%,-8px) scale(1.3)}25%{transform:translate(-50%,0) scale(1)}}
+.hint{margin:0;text-align:center;font:800 13px/1.35 var(--body);color:#f2d9bd}
 @keyframes beat{15%{transform:scale(1.15)}}
 
 /* ---------- Question cards ---------- */
@@ -233,7 +239,7 @@ h1,h2{margin:0;font-weight:400;font-family:var(--display);text-wrap:balance}
     <div id="scoreBox"><div id="scoreN">0</div><div id="scoreL">points</div><div id="mult" hidden>×2</div></div>
     <div id="lives" aria-label="Lives"></div>
   </div>
-  <div id="clock" role="timer" aria-label="Time left"><svg viewBox="0 0 64 64"><circle class="track" cx="32" cy="32" r="27"/><circle class="fill" id="clockFill" cx="32" cy="32" r="27" stroke-dasharray="169.6" stroke-dashoffset="0"/></svg><b id="clockN">60</b></div>
+  <div id="clock" role="timer" aria-label="Time left"><svg viewBox="0 0 64 64"><circle class="track" cx="32" cy="32" r="27"/><circle class="fill" id="clockFill" cx="32" cy="32" r="27" stroke-dasharray="169.6" stroke-dashoffset="0"/></svg><b id="clockN">10</b><small id="clockD" aria-live="polite"></small></div>
 </div>
 <div id="qbox" class="ui off" aria-live="polite"></div>
 <div id="banner" class="ui off"><b id="bannerB"></b><small id="bannerS"></small></div>
@@ -243,6 +249,7 @@ h1,h2{margin:0;font-weight:400;font-family:var(--display);text-wrap:balance}
     <div class="rule"><b class="g">+1</b>Swipe through the right answer</div>
     <div class="rule"><b class="r">−♥</b>Wrong fruit are bombs. Don't let the right one drop</div>
     <div class="rule"><b class="y">×3</b>3 in a row doubles, 5 in a row triples</div>
+    <div class="rule"><b class="o" id="ruleClock">+2 s</b><span id="ruleClockT">Right adds time, wrong takes it. The fruit speed up</span></div>
   </div>
 </div>
 <div id="flash"></div>
@@ -269,6 +276,7 @@ h1,h2{margin:0;font-weight:400;font-family:var(--display);text-wrap:balance}
           <div class="rule"><b class="r">−♥</b>The wrong ones are bombs in disguise</div>
           <div class="rule"><b class="o">♥♥♥</b>Three lives. A right fruit that drops costs one</div>
           <div class="rule"><b class="y">×3</b>Streaks multiply. Every 8th wave is a frenzy</div>
+          <div class="rule"><b class="g">+s</b>A chess clock: right answers add seconds, wrong ones take them</div>
         </div>
         <button type="button" class="cta big push" id="playBtn">Play</button>
       </div>
@@ -288,7 +296,7 @@ h1,h2{margin:0;font-weight:400;font-family:var(--display);text-wrap:balance}
         <button type="button" class="back push" data-go="stepSubj"><span aria-hidden="true">‹</span>Subjects</button>
         <p class="step">Step 2 of 2</p>
       </header>
-      <div class="head"><h1 id="subName"></h1><p class="lead">Your record for each topic is kept per level and time limit.</p></div>
+      <div class="head"><h1 id="subName"></h1><p class="lead">Your record for each topic is kept per level and clock.</p></div>
       <div class="list" id="topics"></div>
       <div class="footer">
         <div class="seg" id="diffSeg" role="group" aria-label="Difficulty">
@@ -296,11 +304,12 @@ h1,h2{margin:0;font-weight:400;font-family:var(--display);text-wrap:balance}
           <button type="button" class="d2" data-d="2"><i></i>Medium</button>
           <button type="button" class="d3" data-d="3"><i></i>Hard</button>
         </div>
-        <div class="seg" id="timeSeg" role="group" aria-label="Time limit">
-          <button type="button" data-t="60">60 sec</button>
-          <button type="button" data-t="90">90 sec</button>
-          <button type="button" data-t="120">2 min</button>
+        <div class="seg" id="clockSeg" role="group" aria-label="Clock">
+          <button type="button" data-c="quick">Quick</button>
+          <button type="button" data-c="normal">Normal</button>
+          <button type="button" data-c="relaxed">Relaxed</button>
         </div>
+        <p class="hint" id="clockHint"></p>
         <button type="button" class="cta push" id="startBtn">Start</button>
       </div>
     </section>
@@ -349,8 +358,15 @@ h1,h2{margin:0;font-weight:400;font-family:var(--display);text-wrap:balance}
 const $=id=>document.getElementById(id);
 const {SUBJECTS,SICON,DIFFNAME,stream,ri,shuffle}=EduQ;
 const el=(tag,cls,text)=>{const e=document.createElement(tag);if(cls)e.className=cls;if(text!=null)e.textContent=text;return e};
-const fmtT=s=>{s=Math.max(0,Math.ceil(s));return s>=60?`${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`:String(s)};
-const fmtLong=s=>s>=60?`${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`:`${s} sec`;
+/* Chess clock: start with 10 s; the clock only runs while fruit are in the air. A right slice adds time, a wrong slice
+   or a dropped right fruit takes it away. The clock can't hold more than start + 5 s, and the bonus shrinks by 0.5 s
+   for every 8 right answers (never below 0.5 s), so even strong players' runs end. */
+const CLOCKS={quick:{name:'Quick',start:10,plus:1,minus:1},normal:{name:'Normal',start:10,plus:2,minus:2},relaxed:{name:'Relaxed',start:10,plus:3,minus:2}};
+const fmtClock=s=>s<=0?'0':s<5?s.toFixed(1):String(Math.ceil(s));
+const fmtS=v=>`${Math.round(v*10)/10} s`;
+const clockHint=c=>`Start with ${c.start} s. A right slice adds ${c.plus} s, a wrong one or a dropped fruit takes ${c.minus} s.`;
+/* fruit fly a little faster with every question, up to 1.5× */
+const SPEED_STEP=.02,SPEED_MAX=1.5;
 const rnd=(a,b)=>a+Math.random()*(b-a);
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 /* Fruit-bowl palette for the subject tiles, readable with white text */
@@ -358,15 +374,17 @@ const SHUE={english:'#ff4d6a',math:'#ff8a00',geo:'#3fae4a',science:'#2f9be0',inf
 const GAME='slicefall';
 
 /* ======================= SETTINGS ======================= */
-const cfg={subject:'english',topic:'irregular',diffs:{},time:60};
+const cfg={subject:'english',topic:'irregular',diffs:{},clock:'normal'};
 try{const s=JSON.parse(localStorage.getItem('slicefall-cfg')||'{}');Object.assign(cfg,s);if(!cfg.diffs)cfg.diffs={}}catch(e){}
+if(!CLOCKS[cfg.clock])cfg.clock='normal';delete cfg.time;
+const CLK=()=>CLOCKS[cfg.clock]||CLOCKS.normal;
 /* settings that came from the portal are never written over the player's own */
 const saveCfg=()=>{if(EMBED)return;try{localStorage.setItem('slicefall-cfg',JSON.stringify(cfg))}catch(e){}};
 const curSubject=()=>SUBJECTS.find(s=>s.id===cfg.subject)||SUBJECTS[0];
 const curTopic=()=>{const s=curSubject();return s.topics.find(t=>t.id===cfg.topic)||s.topics[0]};
 const topicDiff=tp=>cfg.diffs[tp.id]||tp.d;
 const DIFF=()=>topicDiff(curTopic());
-const bestKey=(id,d,t)=>`slicefall-best-${id||curTopic().id}-d${d||DIFF()}-t${t||cfg.time}`;
+const bestKey=(id,d,c)=>`slicefall-best-${id||curTopic().id}-d${d||DIFF()}-c${c||cfg.clock}`;
 const getBest=(id,d,t)=>{try{return +localStorage.getItem(bestKey(id,d,t))||0}catch(e){return 0}};
 
 function logResult(r){
@@ -388,9 +406,9 @@ function renderTopics(){const s=curSubject(),t=curTopic();cfg.topic=t.id;$('subN
     b.append(el('span','radio'),tx,side);b.onclick=()=>{cfg.topic=tp.id;saveCfg();renderTopics()};box.append(b)});
   $('startBtn').textContent=`Start · ${t.name}`;
   document.querySelectorAll('#diffSeg button').forEach(b=>b.setAttribute('aria-pressed',+b.dataset.d===DIFF()));
-  document.querySelectorAll('#timeSeg button').forEach(b=>b.setAttribute('aria-pressed',+b.dataset.t===cfg.time))}
+  document.querySelectorAll('#clockSeg button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.c===cfg.clock));$('clockHint').textContent=clockHint(CLK())}
 document.querySelectorAll('#diffSeg button').forEach(b=>b.onclick=()=>{cfg.diffs[curTopic().id]=+b.dataset.d;saveCfg();renderTopics()});
-document.querySelectorAll('#timeSeg button').forEach(b=>b.onclick=()=>{cfg.time=+b.dataset.t;saveCfg();renderTopics()});
+document.querySelectorAll('#clockSeg button').forEach(b=>b.onclick=()=>{cfg.clock=b.dataset.c;saveCfg();renderTopics()});
 const SCREENS=['scrHome','stepSubj','stepTopic'];
 function go(id){SCREENS.forEach(x=>$(x).hidden=x!==id);$('sheet').classList.toggle('peek',id==='scrHome');
   ({scrHome:()=>{},stepSubj:renderSubjects,stepTopic:renderTopics})[id]();$('sheet').scrollTop=0}
@@ -588,17 +606,18 @@ const LV={1:{T:4.3,hf:[.52,.7],spread:.5,cross:.03,stag:.22},2:{T:3.45,hf:[.66,.
 function playTop(){const qb=$('qbox');if(qb.classList.contains('off')||!qb.children.length)return 130;return qb.getBoundingClientRect().bottom+8}
 function spawnFruit(o){fruits.push(Object.assign({rot:rnd(-.5,.5),spin:rnd(.5,1.6)*(Math.random()<.5?-1:1),ph:Math.random()*7,state:'queued',alpha:1,reveal:0,age:0},o))}
 /* one question's three fruit, launched from below in staggered order */
+const speed=()=>Math.min(SPEED_MAX,1+SPEED_STEP*Math.max(0,served-1));
 function launchSet(q,delay,scale,laneShift){
-  const L=LV[DIFF()],r=R*scale,top=playTop()+r,lower=H+r*1.15,openH=Math.max(r*3,H-top);
+  const L=LV[DIFF()],sp=speed(),r=R*scale,top=playTop()+r,lower=H+r*1.15,openH=Math.max(r*3,H-top);
   const gap=Math.max(2.3*r,W*L.spread/3);let lanes=[-1,0,1].map(i=>W/2+(i+laneShift)*gap);
   const lo=r+8,hi=W-r-8;if(lanes[2]>hi||lanes[0]<lo){const span=Math.min(hi-lo,lanes[2]-lanes[0]),c0=clamp((lanes[0]+lanes[2])/2,lo+span/2,hi-span/2);lanes=[c0-span/2,c0,c0+span/2]}
   const kinds=shuffle(KINDS.slice()).slice(0,3),order=shuffle([0,1,2]),stag=shuffle([0,1,2]);
-  order.forEach((ai,j)=>{const T=L.T*rnd(.94,1.06)*(q.frenzy?1.12:1),hf=rnd(L.hf[0],L.hf[1]);
+  order.forEach((ai,j)=>{const T=L.T/sp*rnd(.94,1.06)*(q.frenzy?1.12:1),hf=rnd(L.hf[0],L.hf[1]);
     const apexY=Math.max(top,H-hf*openH),h=lower-apexY,g=8*h/(T*T),vy=-4*h/T;
     const ax=clamp(lanes[j]+rnd(-.08,.08)*gap,lo,hi),room=Math.min(ax-lo,hi-ax);
     const off=clamp(rnd(-1,1)*L.cross*W,-room,room),sx=ax-off,vx=off/(T/2);
     spawnFruit({q,ans:q.cur.ans[ai],right:ai===q.cur.correct,kind:kinds[j],x:sx,y:lower,vx,vy,g,r,s:scale,
-      lab:label(q.cur.ans[ai],!!q.cur.code),at:gt+delay+stag[j]*L.stag})})}
+      lab:label(q.cur.ans[ai],!!q.cur.code),at:gt+(delay+stag[j]*L.stag)/sp})})}
 function addParts(n,o){for(let i=0;i<n;i++)parts.push(o(i))}
 function juice(x,y,k,ang,r){
   addParts(18,()=>{const a=ang+rnd(-1.9,1.9)+(Math.random()<.5?Math.PI:0),sp=rnd(140,520)*(R/52);
@@ -617,7 +636,7 @@ function pop(x,y,text,color,big){pops.push({x,y,text,color,life:0,big})}
 
 /* ======================= GAME STATE ======================= */
 // states: menu · count · run · paused · over
-let state='menu',timeLeft=60,countT=0,next=null,lastSec=0,pausedFrom='run',gt=0;
+let state='menu',timeLeft=10,countT=0,next=null,lastSec=0,pausedFrom='run',gt=0,played=0,ticking=false;
 let score=0,right=0,asked=0,streak=0,bestStreak=0,lives=3,missed=[],best=0,beat=false,served=0,nextFrenzy=8,wave=null,waveAt=0,endAt=0,ending=false,shakeT=0,shakeA=0,hitstop=0,menuT=0,frenzies=0;
 const servedLog=[];
 const show=(id,on)=>$(id).classList.toggle('off',!on);
@@ -634,12 +653,15 @@ function paintHud(hit){const sn=$('scoreN');if(+sn.textContent!==score){sn.textC
   $('scoreL').textContent=score===1?'point':'points';
   const m=$('mult'),mv=mult();if(mv>1){const was=m.hidden||m.textContent!==`×${mv}`;m.hidden=false;m.textContent=`×${mv}`;m.classList.toggle('x3',mv===3);if(was){m.classList.remove('pop');void m.offsetWidth;m.classList.add('pop')}}else m.hidden=true;
   [...$('lives').children].forEach((h,i)=>{h.classList.toggle('lost',i>=lives);if(hit&&i===lives){h.classList.remove('hit');void h.getBoundingClientRect();h.classList.add('hit')}})}
-function paintClock(){$('clockN').textContent=fmtT(timeLeft);$('clock').classList.toggle('low',timeLeft<=10&&state!=='menu');
-  $('clockFill').style.strokeDashoffset=String(169.6*(1-Math.max(0,timeLeft/cfg.time)))}
+function paintClock(){const cap=CLK().start+5;$('clockN').textContent=fmtClock(timeLeft);$('clock').classList.toggle('low',timeLeft<5&&state!=='menu');
+  $('clock').classList.toggle('stop',!ticking&&state==='run');
+  $('clockFill').style.strokeDashoffset=String(169.6*(1-Math.max(0,Math.min(1,timeLeft/cap))))}
+function clockDelta(txt,cls){const d=$('clockD');d.textContent=txt;d.className='';void d.offsetWidth;d.className=cls;clearTimeout(clockDelta.h);clockDelta.h=setTimeout(()=>d.className='',900)}
 function clearBoard(){fruits=[];halves=[];parts=[];booms=[];pops=[];sctx.setTransform(1,0,0,1,0,0);sctx.clearRect(0,0,scv.width,scv.height)}
 function reset(){clearBoard();score=0;right=0;asked=0;streak=0;bestStreak=0;lives=3;missed=[];beat=false;served=0;nextFrenzy=8;wave=null;waveAt=0;ending=false;frenzies=0;servedLog.length=0;
-  timeLeft=cfg.time;lastSec=Math.ceil(timeLeft);best=getBest();$('qbox').innerHTML='';show('qbox',false);paintHud();paintClock()}
-function start(){reset();next=stream(curTopic(),DIFF());panel(null);show('hud',true);
+  timeLeft=CLK().start;played=0;ticking=false;lastSec=Math.ceil(timeLeft);best=getBest();$('clockD').className='';$('qbox').innerHTML='';show('qbox',false);paintHud();paintClock()}
+function start(){reset();next=stream(curTopic(),DIFF());panel(null);show('hud',true);const ck=CLK();
+  $('ruleClock').textContent=`+${ck.plus} s`;$('ruleClockT').textContent=`Start with ${ck.start} s. Right adds ${ck.plus} s, wrong or dropped takes ${ck.minus} s. Fruit speed up`;
   state='count';countT=3.2;show('count',true);tickCount(3);paintAudio()}
 function tickCount(n){const c=$('countN');c.textContent=n||'Slice!';c.classList.remove('tick');void c.offsetWidth;c.classList.add('tick');S.tick(n)}
 
@@ -647,34 +669,38 @@ function tickCount(n){const c=$('countN');c.textContent=n||'Slice!';c.classList.
 const KEYC=['#86cf45','#ff9416'];
 function nextWave(){if(state!=='run'||ending)return;
   const frenzy=served>=nextFrenzy,n=frenzy?2:1;if(frenzy){nextFrenzy=served+n+8;frenzies++;banner('Frenzy!','two questions at once','var(--orange-d)');S.frenzy()}
-  const qb=$('qbox');qb.innerHTML='';qb.classList.toggle('two',n===2);const qs=[];
-  for(let i=0;i<n;i++){const cur=next();served++;servedLog.push(cur.q+'|'+cur.answer+'|'+(cur.img?cur.img.length:''));
-    const card=el('div','qcard');if(n===2){card.dataset.k='AB'[i];card.style.setProperty('--k',KEYC[i]);card.append(el('span','qkey','AB'[i]))}
+  /* the bank has run out of fresh questions for this topic: end the run rather than repeat one */
+  const curs=[];for(let i=0;i<n;i++){const c=next();if(c.repeat)break;curs.push(c)}
+  if(!curs.length){finish('done');return}
+  const m=curs.length;const qb=$('qbox');qb.innerHTML='';qb.classList.toggle('two',m===2);const qs=[];
+  for(let i=0;i<m;i++){const cur=curs[i];served++;servedLog.push(cur.q+'|'+cur.answer+'|'+(cur.img||''));
+    const card=el('div','qcard');if(m===2){card.dataset.k='AB'[i];card.style.setProperty('--k',KEYC[i]);card.append(el('span','qkey','AB'[i]))}
     if(cur.img){const im=el('img');im.src=cur.img;im.alt='Flag';card.append(im)}
     if(cur.code)card.append(el('span','qtag',cur.code));
     const qt=el('div','qtext'+(cur.code?' code':''),cur.q);card.append(qt);const res=el('div','qres');card.append(res);qb.append(card);
-    qs.push({cur,card,res,frenzy,key:n===2?KEYC[i]:null,resolved:false})}
+    qs.push({cur,card,res,frenzy,key:m===2?KEYC[i]:null,resolved:false})}
   show('qbox',true);wave={qs};
   qs.forEach((q,i)=>launchSet(q,.35+(frenzy?.25:0)+i*.8,frenzy?.86:1,frenzy?(i?.25:-.25):0))}
 const CHEER={3:['Combo ×2','3 in a row'],5:['Combo ×3','5 in a row'],10:['Juicy!','10 in a row'],15:['Fruit master!','15 in a row'],20:['Unstoppable!','20 in a row'],30:['Legendary!','30 in a row']};
-function resolve(q,how,f){if(q.resolved)return;q.resolved=true;asked++;
+function resolve(q,how,f){if(q.resolved)return;q.resolved=true;asked++;const ck=CLK();
   fruits.forEach(o=>{if(o.q!==q||o===f)return;if(o.state==='queued')o.state='gone';else if(o.state==='live'){o.state='spent';if(o.right&&how!=='right')o.reveal=1}});
-  if(how==='right'){right++;streak++;bestStreak=Math.max(bestStreak,streak);const m=mult();score+=m;q.card.classList.add('right','done');
+  if(how==='right'){const bonus=Math.max(.5,ck.plus-.5*Math.floor(right/8));timeLeft=Math.min(ck.start+5,timeLeft+bonus);clockDelta(`+${fmtS(bonus)}`,'good');
+    right++;streak++;bestStreak=Math.max(bestStreak,streak);const m=mult();score+=m;q.card.classList.add('right','done');
     pop(f.x,f.y-f.r*.3,m>1?`+${m}`:'+1',m===3?'#ff7a8f':m===2?'#ffd23f':'#fff',m>1);S.splat(streak-1);
     const c=CHEER[streak];if(c){banner(c[0],c[1],streak>=5?'var(--melon-d)':'var(--gold-d)');if(streak===3||streak===5)S.combo(m)}
     if(!beat&&best>0&&score>best){beat=true;S.record();setTimeout(()=>banner('New record!',`Past ${best} points`,'var(--good-d)'),500)}}
-  else{const was=streak;streak=0;q.res.textContent=`✓ ${q.cur.answer}`;q.card.classList.add(how==='wrong'?'wrong':'miss');
+  else{timeLeft=Math.max(0,timeLeft-ck.minus);clockDelta(`−${fmtS(ck.minus)}`,'bad');const was=streak;streak=0;q.res.textContent=`✓ ${q.cur.answer}`;q.card.classList.add(how==='wrong'?'wrong':'miss');
     missed.push({q:q.cur.img?'This flag':q.cur.q,img:q.cur.img,answer:q.cur.answer,picked:how==='wrong'?f.ans:'missed'});
     if(how==='miss')pop(clamp(f.x,60,W-60),H-70,'Dropped!','#ffb0b0');if(was>=3)pop(W/2,H*.55,'Combo lost','#ffb0b0');loseLife(how)}
   paintHud(how!=='right');toParent({type:'edu-progress',game:GAME,score,right,asked});
-  if(wave&&wave.qs.every(x=>x.resolved)){wave=null;waveAt=gt+(how==='right'?.45:1.05)}}
+  paintClock();if(wave&&wave.qs.every(x=>x.resolved)){wave=null;waveAt=gt+(how==='right'?.45/speed():1.05)}}
 function loseLife(how){lives=Math.max(0,lives-1);shakeT=how==='wrong'?.42:.28;shakeA=how==='wrong'?14:8;flash(how==='wrong'?'#ff5a1f':'#ff4d4d',how==='wrong'?.34:.22);
   if(how!=='wrong')S.drop();if(lives<=0){ending=true;endAt=gt+1.1}}
 function slice(f,ang){
   if(f.right){f.state='cut';split(f,ang);juice(f.x,f.y,f.kind,ang,f.r);S.slice();resolve(f.q,'right',f)}
   else{f.state='cut';booms.push({x:f.x,y:f.y,r:f.r,vx:f.vx*.3,vy:f.vy*.3,life:0,boomed:false});pop(f.x,f.y-f.r,'−♥','#ff8a8a',true);S.fuse();S.bomb();hitstop=.1;resolve(f.q,'wrong',f)}}
 function pause(){if(state!=='run'&&state!=='count')return;pausedFrom=state;state='paused';show('count',false);trails.clear();
-  $('pLine').textContent=`${score} ${score===1?'point':'points'}, ${lives} ${lives===1?'life':'lives'}, ${fmtLong(Math.ceil(timeLeft))} left`;panel('pauseP');paintAudio()}
+  $('pLine').textContent=`${score} ${score===1?'point':'points'}, ${lives} ${lives===1?'life':'lives'}, ${fmtClock(timeLeft)} s on the clock`;panel('pauseP');paintAudio()}
 function resume(){if(state!=='paused')return;panel(null);state='count';countT=pausedFrom==='count'?3.2:1.2;show('count',true);tickCount(pausedFrom==='count'?3:1);paintAudio()}
 function finish(cause){
   if(state!=='run'&&state!=='paused')return;state='over';show('qbox',false);show('count',false);trails.clear();S.end();
@@ -682,12 +708,12 @@ function finish(cause){
   const sc=score,isBest=sc>best&&sc>0;if(isBest){best=sc;try{localStorage.setItem(bestKey(),best)}catch(e){}}
   logResult({game:GAME,subject:curSubject().id,topic:curTopic().id,topicName:curTopic().name,level:DIFF(),score:sc,right,asked,bestStreak,
     missed:missed.map(m=>({q:m.q,answer:m.answer,picked:m.picked})),at:new Date().toISOString(),
-    livesLeft:lives,timeUsed:Math.round(cfg.time-timeLeft),duration:cfg.time,cause,frenzies});
+    livesLeft:lives,timeUsed:Math.round(played),duration:Math.round(played),clock:cfg.clock,cause,frenzies});
   setTimeout(()=>{
-    $('rCause').textContent=cause==='quit'?'Run ended':cause==='lives'?'Out of lives':"Time's up";$('rScore').textContent=sc;$('rScoreL').textContent=sc===1?'point':'points';
+    $('rCause').textContent=cause==='quit'?'Run ended':cause==='lives'?'Out of lives':cause==='done'?'Topic cleared: every question done':"Time's up";$('rScore').textContent=sc;$('rScoreL').textContent=sc===1?'point':'points';
     const pct=asked?Math.round(right/asked*100):0;$('rMark').textContent=asked?`${pct}% right${bestStreak>=5?' · reached ×3':bestStreak>=3?' · reached ×2':''}${frenzies?` · ${frenzies} frenz${frenzies>1?'ies':'y'}`:''}`:'No fruit sliced this time';
     const pb=$('rBest');pb.textContent=isBest?'New record!':`Record ${best} points`;pb.classList.toggle('best',isBest);
-    $('rTopic').textContent=`${curSubject().name}, ${curTopic().name}, ${DIFFNAME[DIFF()]}, ${fmtLong(cfg.time)}`;
+    $('rTopic').textContent=`${curSubject().name}, ${curTopic().name}, ${DIFFNAME[DIFF()]}, ${CLK().name.toLowerCase()} clock, lasted ${Math.round(played)} s`;
     $('rRight').textContent=`${right}/${asked}`;$('rRight').classList.toggle('long',`${right}/${asked}`.length>5);$('rStreak').textContent=bestStreak;$('rLives').textContent=lives;
     const rv=$('review');rv.innerHTML='';
     if(missed.length){rv.append(el('h3',null,'Worth another look'));const ol=el('ol'),seen=new Set();
@@ -805,17 +831,17 @@ function menuUpdate(dt){menuT-=dt;if(menuT<=0){menuToss();menuT=rnd(.9,1.6)}
    Opened by the portal as ?topic=<id>&level=1-3&time=60|90|120&lock=1 → settings come from the portal and the run starts at once.
    lock=1 (class mode): no replay, no topic menu. Posts edu-ready on load, edu-progress after every answer, edu-result at the end. */
 const EMBED=(()=>{const p=new URLSearchParams(location.search);if(!p.get('topic'))return null;
-  return{topic:p.get('topic'),level:+p.get('level')||0,time:+p.get('time')||0,lock:p.get('lock')==='1'}})();
+  return{topic:p.get('topic'),level:+p.get('level')||0,clock:p.get('clock'),lock:p.get('lock')==='1'}})();
 const toParent=m=>{try{if(window.parent!==window)window.parent.postMessage(m,'*')}catch(e){}};
 function applyEmbed(){if(!EMBED)return false;const s=SUBJECTS.find(s=>s.topics.some(t=>t.id===EMBED.topic));if(!s)return false;
-  cfg.subject=s.id;cfg.topic=EMBED.topic;if([1,2,3].includes(EMBED.level))cfg.diffs[EMBED.topic]=EMBED.level;if([60,90,120].includes(EMBED.time))cfg.time=EMBED.time;
+  cfg.subject=s.id;cfg.topic=EMBED.topic;if([1,2,3].includes(EMBED.level))cfg.diffs[EMBED.topic]=EMBED.level;if(CLOCKS[EMBED.clock])cfg.clock=EMBED.clock;
   if(EMBED.lock){$('againBtn').hidden=true;$('menuBtn').hidden=true;const n=el('p','sent','Result sent to your teacher.');$('againBtn').parentNode.prepend(n)}
   return true}
 
 /* test hook, only with ?debug=1 */
 if(new URLSearchParams(location.search).has('debug'))window.SF={get state(){return state},
   fruits:()=>fruits.filter(f=>f.q).map(f=>({x:f.x,y:f.y,r:f.r,right:f.right,age:f.age,live:f.state==='live'&&!f.q.resolved&&f.y<H-f.r*.15,ans:f.ans,key:f.q.key})),
-  info:()=>({score,right,asked,lives,streak,bestStreak,served,frenzies,timeLeft,dpr:DPR,R}),served:()=>servedLog.slice(),fps:()=>fpsLog.slice()};
+  info:()=>({score,right,asked,lives,streak,bestStreak,served,frenzies,timeLeft,played,ticking,speed:speed(),exhausted:!!(next&&next.exhausted),dpr:DPR,R}),served:()=>servedLog.slice(),fps:()=>fpsLog.slice()};
 
 /* ======================= LOOP ======================= */
 let last=performance.now(),perfT=0,perfN=0,perfSum=0;const fpsLog=[];
@@ -828,7 +854,8 @@ function frame(now){requestAnimationFrame(frame);const realDt=Math.min((now-last
   gt+=dt;
   if(state==='count'){const prev=Math.ceil(countT-.2);countT-=realDt;const n=Math.ceil(countT-.2);if(n!==prev)tickCount(Math.max(0,n));
     if(countT<=0){state='run';show('count',false);if(!wave&&!fruits.some(f=>f.q&&f.state==='live'))waveAt=gt;S.bell()}}
-  if(state==='run'){timeLeft-=realDt;const sec=Math.ceil(timeLeft);if(sec!==lastSec){lastSec=sec;if(sec<=10&&sec>0)S.clock()}paintClock();
+  if(state==='run'){ticking=!!wave&&!ending&&fruits.some(f=>f.q&&f.state==='live'&&!f.q.resolved);
+    if(ticking){timeLeft-=realDt;played+=realDt}const sec=Math.ceil(timeLeft);if(sec!==lastSec){lastSec=sec;if(sec<=5&&sec>0&&ticking)S.clock()}paintClock();
     if(ending&&gt>=endAt){finish('lives');}
     else if(timeLeft<=0){timeLeft=0;paintClock();finish('time')}
     else if(!wave&&!ending&&gt>=waveAt)nextWave()}
