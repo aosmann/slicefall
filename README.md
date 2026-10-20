@@ -26,7 +26,7 @@ Plain canvas 2D, no build step, works offline after the first visit, installs to
 ## Files
 - `index.html`: the game (canvas board, fruit, swipe input, menus, audio, scoring, PORTAL EMBED block)
 - `questions.js`: the shared EduQ question bank (v2), byte-identical to Lanefall and Stackfall. Do not edit here.
-- `game.json`: portal metadata and teacher settings (level, time)
+- `game.json`: portal metadata and teacher settings (level, clock)
 - `sw.js`, `manifest.webmanifest`, `icon-*.png`: offline support and install
 
 ## Portal
