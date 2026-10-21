@@ -33,3 +33,8 @@ Plain canvas 2D, no build step, works offline after the first visit, installs to
 Follows the EduGames game contract v1: `?topic=<id>&level=1-3&clock=quick|normal|relaxed&lock=1` starts a run at once; posts `edu-ready`, `edu-progress` after every answer and `edu-result` at the end (also kept in `localStorage['edu-results']`). The result adds `clock`, `livesLeft`, `timeUsed` and `duration` (seconds the clock actually ran), `cause` (`time` / `lives` / `done` / `quit`) and `frenzies`; `missed[].picked` is the sliced answer or `"missed"` for a dropped fruit.
 
 `?debug=1` exposes a read-only `window.SF` hook used by the automated tests.
+
+## Credits
+
+Country, capital and continent data: [mledoze/countries](https://github.com/mledoze/countries), Open Database License (ODbL 1.0).  
+Flags: [flag-icons](https://github.com/lipis/flag-icons), MIT licence, compressed into `flags/`.
