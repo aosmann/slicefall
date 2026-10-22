@@ -395,12 +395,13 @@ function logResult(r){
 /* ======================= MENUS ======================= */
 function renderSubjects(){const box=$('subjects');box.innerHTML='';
   SUBJECTS.forEach(s=>{const b=el('button','tile push');b.type='button';b.style.setProperty('--h',SHUE[s.id]||'#ff4d6a');
-    const tx=el('span','tx');tx.append(el('strong',null,s.name),el('span',null,`${s.topics.length} topics`));
+    const tx=el('span','tx');tx.append(el('strong',null,s.name),el('span',null,`${s.topics.filter(x=>!x.unit).length} topics`));
     const ic=el('span','sicon');ic.innerHTML=`<svg viewBox="0 0 24 24" aria-hidden="true">${SICON[s.id]||''}</svg>`;
     b.append(ic,tx);b.onclick=()=>{if(cfg.subject!==s.id){cfg.subject=s.id;cfg.topic=s.topics[0].id}saveCfg();go('stepTopic')};box.append(b)})}
 function renderTopics(){const s=curSubject(),t=curTopic();cfg.topic=t.id;$('subName').textContent=s.name;
   const box=$('topics');box.innerHTML='';box.style.setProperty('--h',SHUE[s.id]||'#ff4d6a');
-  s.topics.forEach(tp=>{const b=el('button','row');b.type='button';b.setAttribute('aria-pressed',tp.id===cfg.topic);
+  {const o=document.getElementById('topTabs');if(o)o.remove();const tb=EduQ.topicTabs&&EduQ.topicTabs(s,t,id=>{cfg.topic=id;saveCfg();renderTopics()});if(tb){tb.id='topTabs';box.before(tb)}}
+  (EduQ.topicsOf?EduQ.topicsOf(s,t):s.topics).forEach(tp=>{const b=el('button','row');b.type='button';b.setAttribute('aria-pressed',tp.id===cfg.topic);
     const tx=el('span','tx');tx.append(el('strong',null,tp.name),el('span',null,tp.regions&&EduQ.regionLabel?EduQ.regionLabel(EduQ.getRegions(tp.id)):tp.bl));
     const side=el('span');const bs=getBest(tp.id,topicDiff(tp));if(bs)side.append(el('span','best',`${bs} pts`));
     b.append(el('span','radio'),tx,side);b.onclick=()=>{cfg.topic=tp.id;saveCfg();renderTopics()};box.append(b)});
@@ -686,12 +687,12 @@ const CHEER={3:['Combo ×2','3 in a row'],5:['Combo ×3','5 in a row'],10:['Juic
 function resolve(q,how,f){if(q.resolved)return;q.resolved=true;asked++;const ck=CLK();
   fruits.forEach(o=>{if(o.q!==q||o===f)return;if(o.state==='queued')o.state='gone';else if(o.state==='live'){o.state='spent';if(o.right&&how!=='right')o.reveal=1}});
   if(how==='right'){const bonus=Math.max(.5,ck.plus-.5*Math.floor(right/8));timeLeft=Math.min(ck.start+5,timeLeft+bonus);clockDelta(`+${fmtS(bonus)}`,'good');
-    right++;streak++;bestStreak=Math.max(bestStreak,streak);const m=mult();score+=m;q.card.classList.add('right','done');
+    right++;lastAns={q:q.cur.img?'This flag':q.cur.q,img:q.cur.img||null,answer:q.cur.answer,picked:q.cur.answer,ok:1,tag:q.cur.tag||null};streak++;bestStreak=Math.max(bestStreak,streak);const m=mult();score+=m;q.card.classList.add('right','done');
     pop(f.x,f.y-f.r*.3,m>1?`+${m}`:'+1',m===3?'#ff7a8f':m===2?'#ffd23f':'#fff',m>1);S.splat(streak-1);
     const c=CHEER[streak];if(c){banner(c[0],c[1],streak>=5?'var(--melon-d)':'var(--gold-d)');if(streak===3||streak===5)S.combo(m)}
     if(!beat&&best>0&&score>best){beat=true;S.record();setTimeout(()=>banner('New record!',`Past ${best} points`,'var(--good-d)'),500)}}
   else{timeLeft=Math.max(0,timeLeft-ck.minus);clockDelta(`−${fmtS(ck.minus)}`,'bad');const was=streak;streak=0;q.res.textContent=`✓ ${q.cur.answer}`;q.card.classList.add(how==='wrong'?'wrong':'miss');
-    missed.push({q:q.cur.img?'This flag':q.cur.q,img:q.cur.img,answer:q.cur.answer,picked:how==='wrong'?f.ans:'missed'});
+    missed.push({q:q.cur.img?'This flag':q.cur.q,img:q.cur.img,answer:q.cur.answer,picked:how==='wrong'?f.ans:'missed'});lastAns=Object.assign({},missed[missed.length-1],{ok:0,tag:q.cur.tag||null});
     if(how==='miss')pop(clamp(f.x,60,W-60),H-70,'Dropped!','#ffb0b0');if(was>=3)pop(W/2,H*.55,'Combo lost','#ffb0b0');loseLife(how)}
   paintHud(how!=='right');toParent({type:'edu-progress',game:GAME,score,right,asked});
   paintClock();if(wave&&wave.qs.every(x=>x.resolved)){wave=null;waveAt=gt+(how==='right'?.45/speed():1.05)}}
@@ -835,7 +836,8 @@ const EMBED=(()=>{const p=new URLSearchParams(location.search);if(!p.get('topic'
   return{topic:p.get('topic'),level:+p.get('level')||0,clock:p.get('clock'),lock:p.get('lock')==='1'}})();
 /* continents from the portal (class mode); no regions param = all continents */
 const EMBED_REG=EMBED?(EduQ.parseRegions?EduQ.parseRegions(new URLSearchParams(location.search).get('regions'))||EduQ.REGIONS.map(r=>r.id):null):null;
-const toParent=m=>{try{if(window.parent!==window)window.parent.postMessage(m,'*')}catch(e){}};
+let lastAns=null;/* the last answer rides on the next edu-progress, for the portal's mistakes report */
+const toParent=m=>{try{if(m&&m.type==='edu-progress'&&lastAns){m.last=lastAns;lastAns=null}if(window.parent!==window)window.parent.postMessage(m,'*')}catch(e){}};
 function applyEmbed(){if(!EMBED)return false;const s=SUBJECTS.find(s=>s.topics.some(t=>t.id===EMBED.topic));if(!s)return false;
   cfg.subject=s.id;cfg.topic=EMBED.topic;if([1,2,3].includes(EMBED.level))cfg.diffs[EMBED.topic]=EMBED.level;if(CLOCKS[EMBED.clock])cfg.clock=EMBED.clock;
   if(EMBED.lock){$('againBtn').hidden=true;$('menuBtn').hidden=true;const n=el('p','sent','Result sent to your teacher.');$('againBtn').parentNode.prepend(n)}
