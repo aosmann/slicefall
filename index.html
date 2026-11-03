@@ -223,6 +223,7 @@ h1,h2{margin:0;font-weight:400;font-family:var(--display);text-wrap:balance}
 .actions{display:grid;gap:12px}
 .sent{margin:0;text-align:center;font:800 15px/1.3 var(--body);color:var(--ink2)}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition-duration:.01s!important}}
+#clockSeg{grid-template-columns:repeat(4,minmax(0,1fr))}
 </style>
 </head>
 <body>
@@ -308,6 +309,7 @@ h1,h2{margin:0;font-weight:400;font-family:var(--display);text-wrap:balance}
           <button type="button" data-c="quick">Quick</button>
           <button type="button" data-c="normal">Normal</button>
           <button type="button" data-c="relaxed">Relaxed</button>
+          <button type="button" data-c="custom">Custom</button>
         </div>
         <p class="hint" id="clockHint"></p>
         <button type="button" class="cta push" id="startBtn">Start</button>
@@ -361,7 +363,7 @@ const el=(tag,cls,text)=>{const e=document.createElement(tag);if(cls)e.className
 /* Chess clock: start with 10 s; the clock only runs while fruit are in the air. A right slice adds time, a wrong slice
    or a dropped right fruit takes it away. The clock can't hold more than start + 5 s, and the bonus shrinks by 0.5 s
    for every 8 right answers (never below 0.5 s), so even strong players' runs end. */
-const CLOCKS={quick:{name:'Quick',start:10,plus:1,minus:1},normal:{name:'Normal',start:10,plus:2,minus:2},relaxed:{name:'Relaxed',start:10,plus:3,minus:2}};
+const CLOCKS={quick:{name:'Quick',start:10,plus:1,minus:1},normal:{name:'Normal',start:10,plus:2,minus:2},relaxed:{name:'Relaxed',start:30,plus:1,minus:1}};
 const fmtClock=s=>s<=0?'0':s<5?s.toFixed(1):String(Math.ceil(s));
 const fmtS=v=>`${Math.round(v*10)/10} s`;
 const clockHint=c=>`Start with ${c.start} s. A right slice adds ${c.plus} s, a wrong one or a dropped fruit takes ${c.minus} s.`;
@@ -376,15 +378,22 @@ const GAME='slicefall';
 /* ======================= SETTINGS ======================= */
 const cfg={subject:'english',topic:'irregular',diffs:{},clock:'normal'};
 try{const s=JSON.parse(localStorage.getItem('slicefall-cfg')||'{}');Object.assign(cfg,s);if(!cfg.diffs)cfg.diffs={}}catch(e){}
-if(!CLOCKS[cfg.clock])cfg.clock='normal';delete cfg.time;
-const CLK=()=>CLOCKS[cfg.clock]||CLOCKS.normal;
+if(!CLOCKS[cfg.clock]&&cfg.clock!=='custom')cfg.clock='normal';delete cfg.time;
+/* custom clock: start seconds, + per right answer, − per wrong one (teacher or player picks) */
+const CUSTOM_FIELDS=[{key:'start',label:'Start',unit:'s',min:5,max:300,step:5},{key:'plus',label:'Right',prefix:'+',unit:'s',min:0,max:10},{key:'minus',label:'Wrong',prefix:'−',unit:'s',min:0,max:10}];
+const clampC=c=>{c=c||{};const f=(k,dv,lo,hi)=>{const v=+c[k];return Number.isFinite(v)&&c[k]!==''&&c[k]!=null?Math.min(hi,Math.max(lo,Math.round(v))):dv};return{start:f('start',30,5,300),plus:f('plus',2,0,10),minus:f('minus',1,0,10)}};
+cfg.custom=clampC(cfg.custom);
+const CLK=()=>cfg.clock==='custom'?Object.assign({name:'Custom'},clampC(cfg.custom)):(CLOCKS[cfg.clock]||CLOCKS.normal);
+const clockId=()=>{if(cfg.clock!=='custom')return cfg.clock;const c=clampC(cfg.custom);return `custom${c.start}-${c.plus}-${c.minus}`};
+function paintCustom(){const o=document.getElementById('customClock');if(o)o.remove();if(cfg.clock!=='custom'||!EduQ.customRow)return;
+  const row=EduQ.customRow(CUSTOM_FIELDS,clampC(cfg.custom),v=>{cfg.custom=clampC(v);saveCfg();renderTopics()});row.id='customClock';$('clockSeg').after(row)}
 /* settings that came from the portal are never written over the player's own */
 const saveCfg=()=>{if(EMBED)return;try{localStorage.setItem('slicefall-cfg',JSON.stringify(cfg))}catch(e){}};
 const curSubject=()=>SUBJECTS.find(s=>s.id===cfg.subject)||SUBJECTS[0];
 const curTopic=()=>{const s=curSubject();return s.topics.find(t=>t.id===cfg.topic)||s.topics[0]};
 const topicDiff=tp=>cfg.diffs[tp.id]||tp.d;
 const DIFF=()=>topicDiff(curTopic());
-const bestKey=(id,d,c)=>`slicefall-best-${id||curTopic().id}-d${d||DIFF()}-c${c||cfg.clock}`;
+const bestKey=(id,d,c)=>`slicefall-best-${id||curTopic().id}-d${d||DIFF()}-c${c||clockId()}`;
 const getBest=(id,d,t)=>{try{return +localStorage.getItem(bestKey(id,d,t))||0}catch(e){return 0}};
 
 function logResult(r){
@@ -408,7 +417,7 @@ function renderTopics(){const s=curSubject(),t=curTopic();cfg.topic=t.id;$('subN
   {const old=document.getElementById('regPick');if(old)old.remove();const pk=EduQ.regionPicker&&EduQ.regionPicker(t,{onChange:renderTopics});if(pk){pk.id='regPick';box.after(pk)}}
   $('startBtn').textContent=`Start · ${t.name}`;
   document.querySelectorAll('#diffSeg button').forEach(b=>b.setAttribute('aria-pressed',+b.dataset.d===DIFF()));
-  document.querySelectorAll('#clockSeg button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.c===cfg.clock));$('clockHint').textContent=clockHint(CLK())}
+  document.querySelectorAll('#clockSeg button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.c===cfg.clock));paintCustom();$('clockHint').textContent=clockHint(CLK())}
 document.querySelectorAll('#diffSeg button').forEach(b=>b.onclick=()=>{cfg.diffs[curTopic().id]=+b.dataset.d;saveCfg();renderTopics()});
 document.querySelectorAll('#clockSeg button').forEach(b=>b.onclick=()=>{cfg.clock=b.dataset.c;saveCfg();renderTopics()});
 const SCREENS=['scrHome','stepSubj','stepTopic'];
@@ -710,7 +719,7 @@ function finish(cause){
   const sc=score,isBest=sc>best&&sc>0;if(isBest){best=sc;try{localStorage.setItem(bestKey(),best)}catch(e){}}
   logResult({game:GAME,subject:curSubject().id,topic:curTopic().id,topicName:curTopic().name,level:DIFF(),score:sc,right,asked,bestStreak,
     missed:missed.map(m=>({q:m.q,answer:m.answer,picked:m.picked})),at:new Date().toISOString(),
-    livesLeft:lives,timeUsed:Math.round(played),duration:Math.round(played),clock:cfg.clock,cause,frenzies});
+    livesLeft:lives,timeUsed:Math.round(played),duration:Math.round(played),clock:clockId(),cause,frenzies});
   setTimeout(()=>{
     $('rCause').textContent=cause==='quit'?'Run ended':cause==='lives'?'Out of lives':cause==='done'?'Topic cleared: every question done':"Time's up";$('rScore').textContent=sc;$('rScoreL').textContent=sc===1?'point':'points';
     const pct=asked?Math.round(right/asked*100):0;$('rMark').textContent=asked?`${pct}% right${bestStreak>=5?' · reached ×3':bestStreak>=3?' · reached ×2':''}${frenzies?` · ${frenzies} frenz${frenzies>1?'ies':'y'}`:''}`:'No fruit sliced this time';
@@ -833,13 +842,13 @@ function menuUpdate(dt){menuT-=dt;if(menuT<=0){menuToss();menuT=rnd(.9,1.6)}
    Opened by the portal as ?topic=<id>&level=1-3&time=60|90|120&lock=1 → settings come from the portal and the run starts at once.
    lock=1 (class mode): no replay, no topic menu. Posts edu-ready on load, edu-progress after every answer, edu-result at the end. */
 const EMBED=(()=>{const p=new URLSearchParams(location.search);if(!p.get('topic'))return null;
-  return{topic:p.get('topic'),level:+p.get('level')||0,clock:p.get('clock'),lock:p.get('lock')==='1'}})();
+  return{topic:p.get('topic'),level:+p.get('level')||0,clock:p.get('clock'),cc:{start:p.get('clock_start'),plus:p.get('clock_plus'),minus:p.get('clock_minus')},lock:p.get('lock')==='1'}})();
 /* continents from the portal (class mode); no regions param = all continents */
 const EMBED_REG=EMBED?(EduQ.parseRegions?EduQ.parseRegions(new URLSearchParams(location.search).get('regions'))||EduQ.REGIONS.map(r=>r.id):null):null;
 let lastAns=null;/* the last answer rides on the next edu-progress, for the portal's mistakes report */
 const toParent=m=>{try{if(m&&m.type==='edu-progress'&&lastAns){m.last=lastAns;lastAns=null}if(window.parent!==window)window.parent.postMessage(m,'*')}catch(e){}};
 function applyEmbed(){if(!EMBED)return false;const s=SUBJECTS.find(s=>s.topics.some(t=>t.id===EMBED.topic));if(!s)return false;
-  cfg.subject=s.id;cfg.topic=EMBED.topic;if([1,2,3].includes(EMBED.level))cfg.diffs[EMBED.topic]=EMBED.level;if(CLOCKS[EMBED.clock])cfg.clock=EMBED.clock;
+  cfg.subject=s.id;cfg.topic=EMBED.topic;if([1,2,3].includes(EMBED.level))cfg.diffs[EMBED.topic]=EMBED.level;if(CLOCKS[EMBED.clock])cfg.clock=EMBED.clock;else if(EMBED.clock==='custom'){cfg.clock='custom';cfg.custom=clampC(EMBED.cc)}
   if(EMBED.lock){$('againBtn').hidden=true;$('menuBtn').hidden=true;const n=el('p','sent','Result sent to your teacher.');$('againBtn').parentNode.prepend(n)}
   return true}
 
